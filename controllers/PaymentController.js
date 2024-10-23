@@ -2,6 +2,7 @@ import PaymentModel from "../models/PaymentModel.js";
 import CryptoJS from "crypto-js";
 import axios from "axios";
 import qs from "qs";
+import { sendPaymentStatus } from "../utils/sendPaymenStatusNoti.js";
 
 const config = {
   app_id: "2554",
@@ -101,7 +102,6 @@ class PaymentController {
         config.endpoint,
         order
       );
-      console.log(result.data);
       return res.status(200).json(result.data);
     } catch (error) {
       console.log(error.message);
@@ -157,7 +157,7 @@ class PaymentController {
   }
 
   async updatePaymentStatus(req, res) {
-    const { transaction_id, status, username } = req.body;
+    const { transaction_id, status, username, user = null } = req.body;
 
     try {
       const response = await PaymentModel.updatePaymentStatusQuery(
@@ -167,6 +167,11 @@ class PaymentController {
       );
 
       if (response && response.message === "OK" && response.data) {
+        if (user) {
+          if (status === "completed") {
+            await sendPaymentStatus(user);
+          }
+        }
         return res.status(200).json({
           message: "Payment status updated successfully",
           success: true,
@@ -207,6 +212,57 @@ class PaymentController {
 
     try {
       const response = await axios(postConfig);
+
+      return res.status(200).json(response.data);
+    } catch (error) {
+      console.log(error.message);
+    }
+  }
+
+  async refundPayment(req, res) {
+    const { payment_method } = req.body;
+
+    if (payment_method === "money") {
+      return res.status(200).json({
+        message: "This payment method does not support refund",
+        success: true,
+      });
+    }
+
+    const now = new Date();
+
+    // Extract year, month, day in yy, mm, dd format
+    const year = String(now.getFullYear()).slice(2); // last two digits of year
+    const month = String(now.getMonth() + 1).padStart(2, "0"); // month is 0-indexed, so we add 1
+    const day = String(now.getDate()).padStart(2, "0");
+
+    // Generate a random 10-digit number
+    const randomPart = Math.floor(Math.random() * 1e10)
+      .toString()
+      .padStart(10, "0");
+
+    const postConfig = {
+      endpoint: "https://sb-openapi.zalopay.vn/v2/query_refund",
+    };
+
+    const refundId = `${year}${month}${day}_${config.app_id}_${randomPart}`
+    
+    const params = {
+      app_id: config.app_id,
+      timestamp: Date.now(), // miliseconds
+      m_refund_id: refundId,
+    };
+
+    const data = config.app_id + "|" + params.m_refund_id + "|" + params.timestamp; // app_id|m_refund_id|timestamp
+
+    console.log("data =", data);
+    console.log("m_refund_id =", params.m_refund_id);
+    
+    
+    params.mac = CryptoJS.HmacSHA256(data, config.key1).toString();
+
+    try {
+      const response = await axios.post(postConfig.endpoint, null, { params });
 
       return res.status(200).json(response.data);
     } catch (error) {

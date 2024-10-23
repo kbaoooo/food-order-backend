@@ -123,6 +123,7 @@ class MenuModel {
                   menuitems.price, 
                   menuitems.description, 
                   menuitems.image_url, 
+                  menuitems.available,
                   menucategories.name AS category_name,
                   AVG(reviews.rating) AS average_rating
               FROM 
@@ -166,6 +167,43 @@ class MenuModel {
     }
   }
 
+  async getCategoriesQuery() {
+    const connection = await DB.getConnection();
+
+    try {
+      const getCategoriesQuery = `
+                SELECT 
+                    category_id, 
+                    name 
+                FROM 
+                    menucategories
+            `;
+
+      const [res] = await connection.query(getCategoriesQuery);
+
+      if (res.length > 0) {
+        return {
+          message: "OK",
+          data: res,
+        };
+      } else {
+        return {
+          message: "Failed",
+          error: "No data found",
+        };
+      }
+    } catch (error) {
+      console.error("Failed to retrieve categories:", error);
+
+      return {
+        message: "Failed",
+        error: error,
+      };
+    } finally {
+      connection.release();
+    }
+  }
+
   // [GET] /menu/get-food
   async getFoodQuery(item_id) {
     const connection = await DB.getConnection();
@@ -180,6 +218,7 @@ class MenuModel {
                     menuitems.image_url, 
                     menuitems.available,
                     menucategories.name AS category_name,
+                    menucategories.category_id,
                     AVG(reviews.rating) AS average_rating
                 FROM 
                     menuitems 
@@ -193,7 +232,6 @@ class MenuModel {
                     menuitems.item_id = ?
                 GROUP BY 
                     menuitems.item_id
-
             `;
       const [res] = await connection.query(getFoodQuery, [item_id]);
       if (res.length > 0) {
@@ -209,6 +247,58 @@ class MenuModel {
       }
     } catch (error) {
       console.error("Failed to retrieve food:", error);
+
+      return {
+        message: "Failed",
+        error: error,
+      };
+    } finally {
+      connection.release();
+    }
+  }
+
+  async updateFoodQuery(data) {
+    const {
+      item_id,
+      item_name,
+      price,
+      description,
+      image,
+      category_id,
+      available,
+    } = data;
+
+    const connection = await DB.getConnection();
+
+    const formatedData = {
+      item_id,
+      item_name,
+      price,
+      description,
+      image_url: image,
+      category_id,
+      available,
+    };
+
+    try {
+      const [res] = await connection.query(
+        "UPDATE menuitems SET name = ?, price = ?, description = ?, image_url = ?, category_id = ?, available = ? WHERE item_id = ?",
+        [item_name, price, description, image, category_id, available, item_id]
+      );
+
+      if (res.affectedRows > 0) {
+        return {
+          message: "OK",
+          data: formatedData,
+        };
+      }
+
+      return {
+        message: "Failed",
+        error: "No rows affected",
+      };
+    } catch (error) {
+      console.error("Error during transaction:", error);
 
       return {
         message: "Failed",

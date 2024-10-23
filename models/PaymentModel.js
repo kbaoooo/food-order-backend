@@ -1,9 +1,10 @@
 import DB from "../config/db.js";
 import axios from "axios";
+import { sendOrderStatusNoti } from "../utils/sendOrderStatusNoti.js";
 
 class PaymentModel {
   async insertPaymentQuery(payment) {
-    const { order_id, amount, payment_method, payment_status, transaction_id } =
+    const { order_id, amount, payment_method, payment_status, transaction_id, user } =
       payment;
 
     const connection = await DB.getConnection();
@@ -15,6 +16,10 @@ class PaymentModel {
       );
 
       if (result && result.affectedRows > 0) {
+        if(user) {
+          await sendOrderStatusNoti(user, 'pending', order_id);
+        }
+
         return {
           message: "OK",
           data: {

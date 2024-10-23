@@ -189,15 +189,56 @@ class OrderModel {
     }
   }
 
+  async getAllOrdersQuery() {
+    const connection = await DB.getConnection();
+
+    try {
+      const [result] = await connection.query(
+        `SELECT orders.order_id, orders.total_amount, orders.voucher_id, vouchers.code, orders.status, 
+        orders.note, orders.created_at, payments.payment_method, payments.payment_status, payments.payment_id,
+        users.user_id, users.username, users.email, users.phone_number, users.address, users.isAdmin
+        FROM orders
+        INNER JOIN users ON orders.user_id = users.user_id
+        LEFT JOIN vouchers ON orders.voucher_id = vouchers.voucher_id 
+        LEFT JOIN payments ON orders.order_id = payments.order_id
+        WHERE IF (payments.payment_method = 'zalopay',  payments.payment_status = 'completed', payments.payment_id IS NOT NULL)
+        AND orders.created_at >= NOW() - INTERVAL 48 HOUR
+        ORDER BY orders.created_at DESC
+        `
+      );
+
+      if (result && result.length >= 0) {
+        return {
+          message: "OK",
+          data: result,
+        };
+      } else {
+        return {
+          message: "Failed",
+          error: "No data found",
+        };
+      }
+    } catch (error) {
+      console.error("Error during query:", error);
+      return {
+        message: "Failed",
+        error: error,
+      };
+    } finally {
+      connection.release();
+    }
+  }
+
   async getOrderInfoQuery(order_id, user_id) {
     const connection = await DB.getConnection();
 
     try {
       const [result] = await connection.query(
-        `SELECT orders.order_id, orders.total_amount, orders.voucher_id, vouchers.code , orders.total_discount, orders.created_at, orderitems.order_item_id, 
+        `SELECT orders.order_id, orders.total_amount, orders.voucher_id, vouchers.code , orders.total_discount, 
+        orders.created_at, orderitems.order_item_id, 
         orderitems.item_id, orderitems.price, orderitems.quantity, menuitems.category_id, menuitems.name, 
         menuitems.image_url, menucategories.name AS category_name, payments.payment_id, payments.payment_method, 
-        payments.payment_status, orders.status AS order_status, orders.note
+        payments.transaction_id, payments.payment_status, orders.status AS order_status, orders.note
         FROM orders
         INNER JOIN orderitems ON orders.order_id = orderitems.order_id 
         LEFT JOIN vouchers ON orders.voucher_id = vouchers.voucher_id 
@@ -231,7 +272,7 @@ class OrderModel {
             }, {});
         });
 
-        const paymentData = {
+        const orderData = {
           order_id: result[0].order_id,
           total_amount: result[0].total_amount,
           voucher_id: result[0].voucher_id,
@@ -241,6 +282,7 @@ class OrderModel {
           payment_id: result[0].payment_id,
           payment_method: result[0].payment_method,
           payment_status: result[0].payment_status,
+          transaction_id: result[0].transaction_id,
           order_status: result[0].order_status,
           note: result[0].note,
           products: filteredProducts,
@@ -248,7 +290,7 @@ class OrderModel {
 
         return {
           message: "OK",
-          data: paymentData,
+          data: orderData,
         };
       } else {
         return {
@@ -278,6 +320,7 @@ class OrderModel {
         LEFT JOIN vouchers ON orders.voucher_id = vouchers.voucher_id 
         LEFT JOIN payments ON orders.order_id = payments.order_id
         WHERE orders.user_id = ? AND orders.status != 'canceled' AND IF (payments.payment_method = 'zalopay',  payments.payment_status = 'completed', payments.payment_id IS NOT NULL)
+        AND orders.created_at >= NOW() - INTERVAL 48 HOUR
         ORDER BY orders.created_at DESC
         `,
         [user_id]
@@ -352,6 +395,91 @@ class OrderModel {
         return {
           message: "Failed",
           error: "Failed to insert data",
+        };
+      }
+    } catch (error) {
+      console.error("Error during query:", error);
+      return {
+        message: "Failed",
+        error: error,
+      };
+    } finally {
+      connection.release();
+    }
+  }
+
+  async getRevenueByMonthQuery() {
+    const connection = await DB.getConnection();
+
+    try {
+      const [result] = await connection.query(
+        `SELECT SUM(total_amount) AS revenue 
+        FROM orders  
+        LEFT JOIN payments ON orders.order_id = payments.order_id
+        WHERE payments.payment_status = 'completed'
+        AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`
+      );
+
+      if (result && result.length > 0) {
+        return {
+          message: "OK",
+          data: result[0].revenue,
+        };
+      } else {
+        return {
+          message: "Failed",
+          error: "Failed to fetch revenue",
+        };
+      }
+    } catch (error) {
+      console.error("Error during query:", error);
+      return {
+        message: "Failed",
+        error: error,
+      };
+    } finally {
+      connection.release();
+    }
+  }
+
+  async getRevenuePerMonthQuery() {
+    const connection = await DB.getConnection();
+
+    try {
+      const [result] = await connection.query(
+        `SELECT months.month,
+          COALESCE(SUM(orders.total_amount), 0) AS total_revenue
+          FROM (
+              SELECT 1 AS month UNION ALL
+              SELECT 2 UNION ALL
+              SELECT 3 UNION ALL
+              SELECT 4 UNION ALL
+              SELECT 5 UNION ALL
+              SELECT 6 UNION ALL
+              SELECT 7 UNION ALL
+              SELECT 8 UNION ALL
+              SELECT 9 UNION ALL
+              SELECT 10 UNION ALL
+              SELECT 11 UNION ALL
+              SELECT 12
+          ) AS months
+          LEFT JOIN orders ON MONTH(orders.created_at) = months.month
+          LEFT JOIN payments ON orders.order_id = payments.order_id
+          WHERE (YEAR(orders.created_at) = YEAR(CURDATE()) AND payments.payment_status = 'completed') OR orders.created_at IS NULL 
+          GROUP BY months.month
+          ORDER BY months.month;
+        `
+      );
+
+      if (result && result.length > 0) {
+        return {
+          message: "OK",
+          data: result,
+        };
+      } else {
+        return {
+          message: "Failed",
+          error: "Failed to fetch revenue",
         };
       }
     } catch (error) {

@@ -7,7 +7,8 @@ const paymentRouter = express.Router();
 paymentRouter.post("/insert-payment", authMiddleware, PaymentController.insertPayment);
 paymentRouter.post("/create-payment", PaymentController.createPayment);
 paymentRouter.post("/callback", PaymentController.callback);
-paymentRouter.post("/order-status/:transaction_id",  PaymentController.orderStatus);
+paymentRouter.post("/order-status/:transaction_id", PaymentController.orderStatus);
 paymentRouter.post("/update-payment-status", PaymentController.updatePaymentStatus);
+paymentRouter.post("/refund-payment", PaymentController.refundPayment);
 
 export default paymentRouter;
