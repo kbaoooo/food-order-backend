@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import MenuController from "../controllers/MenuController.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { checkMenuMiddleware } from "../middleware/checkMenu.js";
 
 const menuRouter = express.Router();
 
@@ -30,8 +31,8 @@ menuRouter.post(
   MenuController.updateFood
 );
 
-// Get the menu  
-menuRouter.get("/get-menu", MenuController.getMenu);
+// Get the menu
+menuRouter.get("/get-menu", checkMenuMiddleware, MenuController.getMenu);
 
 // GET categories
 menuRouter.get("/get-categories", MenuController.getCategories);

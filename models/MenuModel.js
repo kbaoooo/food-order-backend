@@ -59,7 +59,8 @@ class MenuModel {
   // [GET] /menu/get-menu
   async getMenuQuery(user_id) {
     const connection = await DB.getConnection();
-
+    console.log("user_id", user_id);
+    
     if (user_id) {
       try {
         // SQL query to join menuitems and menucategories

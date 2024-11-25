@@ -143,53 +143,40 @@ class VoucherModel {
             valid_to,
           } = voucher[0];
 
-          
+          let discount = 0;
+          if (discount_type === "percentage") {
+            discount = (total_amount * discount_value) / 100;
+          } else if (discount_type === "fixed") {
+            discount = discount_value;
+          }
+
           const now = new Date();
           const validFrom = new Date(valid_from);
           const validTo = new Date(valid_to);
-          
+
           if (usage_count < usage_limit) {
             if (now >= validFrom && now <= validTo) {
-              if (total_amount >= min_order_amount) {
-                let discount = 0;
-                if (discount_type === "percentage") {
-                  discount = (total_amount * discount_value) / 100;
-                } else if (discount_type === "fixed") {
-                  discount = discount_value;
-                }
-
+              if (total_amount + discount >= min_order_amount) {
                 if (discount > max_discount_amount) {
                   discount = max_discount_amount;
                 }
 
-                const [result] = await connection.query(
-                  "UPDATE orders SET voucher_id = ?, total_discount = ? WHERE order_id = ?",
-                  [voucher_id, discount, order_id]
+                const [result2] = await connection.query(
+                  "UPDATE vouchers SET usage_count = ? WHERE voucher_id = ?",
+                  [usage_count + 1, voucher_id]
                 );
 
-                if (result.affectedRows > 0) {
-                  const [result2] = await connection.query(
-                    "UPDATE vouchers SET usage_count = ? WHERE voucher_id = ?",
-                    [usage_count + 1, voucher_id]
-                  );
-
-                  if (result2.affectedRows > 0) {
-                    return {
-                      message: "OK",
-                      data: {
-                        discount: discount,
-                      },
-                    };
-                  } else {
-                    return {
-                      message: "Failed",
-                      error: "Cập nhật voucher không thành công",
-                    };
-                  }
+                if (result2.affectedRows > 0) {
+                  return {
+                    message: "OK",
+                    data: {
+                      discount: discount,
+                    },
+                  };
                 } else {
                   return {
                     message: "Failed",
-                    error: "Cập nhật đơn hàng không thành công",
+                    error: "Cập nhật voucher không thành công",
                   };
                 }
               } else {
@@ -201,7 +188,8 @@ class VoucherModel {
             } else {
               return {
                 message: "Failed",
-                error: "Voucher không còn hiệu lực",
+                error:
+                  "Voucher đã hết hạn hoặc chưa đến ngày sử dụng. Vui lòng kiểm tra lại thời gian sử dụng",
               };
             }
           } else {

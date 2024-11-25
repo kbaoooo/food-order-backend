@@ -3,6 +3,7 @@ import DB from "../config/db.js";
 class OrderModel {
   async createOrderQuery(order) {
     const connection = await DB.getConnection();
+
     try {
       const [result] = await connection.query(
         "INSERT INTO orders (user_id, total_amount, voucher_id, total_discount) VALUES (?, ?, ?, ?)",
@@ -420,10 +421,10 @@ class OrderModel {
         AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`
       );
 
-      if (result && result.length > 0) {
+      if (result.length >= 0) {
         return {
           message: "OK",
-          data: result[0].revenue,
+          data: result[0].revenue || 0,
         };
       } else {
         return {
@@ -471,10 +472,47 @@ class OrderModel {
         `
       );
 
-      if (result && result.length > 0) {
+      if (result && result.length >= 0) {
         return {
           message: "OK",
           data: result,
+        };
+      } else {
+        return {
+          message: "Failed",
+          error: "Failed to fetch revenue",
+        };
+      }
+    } catch (error) {
+      console.error("Error during query:", error);
+      return {
+        message: "Failed",
+        error: error,
+      };
+    } finally {
+      connection.release();
+    }
+  }
+
+  async getRevenueByDayQuery() {
+    const connection = await DB.getConnection();
+
+    try {
+      const [result] = await connection.query(
+        `SELECT DATE(created_at) AS day, SUM(total_amount) AS total_revenue
+        FROM orders
+        LEFT JOIN payments ON orders.order_id = payments.order_id
+        WHERE payments.payment_status = 'completed'
+        AND DATE(created_at) = CURDATE()
+        GROUP BY DATE(created_at)
+        ORDER BY DATE(created_at) DESC
+        `
+      );
+      
+      if (result.length >= 0) {
+        return {
+          message: "OK",
+          data: result[0] || { day: new Date(), total_revenue: 0 },
         };
       } else {
         return {

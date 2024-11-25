@@ -4,7 +4,7 @@ import { sendOrderStatusNoti } from "../utils/sendOrderStatusNoti.js";
 class OrderController {
   async createOrder(req, res) {
     const { user_id, total_amount, voucher_id, total_discount } = req.body;
-
+    
     const order = {
       user_id,
       total_amount,
@@ -16,6 +16,7 @@ class OrderController {
       const response = await Order.createOrderQuery(order);
 
       if (response && response.message === "OK" && response.data) {
+
         return res.status(200).json({
           message: "Order created successfully",
           success: true,
@@ -294,7 +295,7 @@ class OrderController {
     try {
       const response = await Order.getRevenueByMonthQuery();
 
-      if (response && response.message === "OK" && response.data) {
+      if (response && response.message === "OK") {
         return res.status(200).json({
           message: "Revenue fetched successfully",
           success: true,
@@ -318,6 +319,32 @@ class OrderController {
       const response = await Order.getRevenuePerMonthQuery();
 
       if(response && response.message === "OK" && response.data) {
+        return res.status(200).json({
+          message: "Revenue fetched successfully",
+          success: true,
+          data: response.data,
+        });
+      } else {
+        return res.status(500).json({
+          message: "Failed to fetch revenue",
+          success: false,
+          error: response.error,
+        });
+      }
+      
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  async getRevenueByDay(req, res) {
+    try {
+      const response = await Order.getRevenueByDayQuery();
+
+      if(response && response.message === "OK") {
+        console.log(response.data);
+        
         return res.status(200).json({
           message: "Revenue fetched successfully",
           success: true,
